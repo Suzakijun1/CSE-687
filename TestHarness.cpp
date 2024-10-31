@@ -18,7 +18,7 @@ using std::vector;
 
 void TestHarness::TestLogger(bool testPass, string testName)
 {
-    //The following block of code outputs the current date and time down to the millisecond
+    //The following block of code outputs the current date and time down to the millisecond for the completion of the test
     auto time_now = std::chrono::system_clock::now();
     std::time_t time = std::chrono::system_clock::to_time_t(time_now);
     auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
@@ -28,11 +28,11 @@ void TestHarness::TestLogger(bool testPass, string testName)
     //Base on the result of the test, outputs if the test passed or failed
     if(testPass==true)
     {
-        cout << "Test passed\n";
+        cout << "Test passed\n\n";
     }
     else
     {
-        cout << "Test failed\n";
+        cout << "Test failed\n\n";
     }
 }
 
@@ -57,39 +57,18 @@ void TestHarness::runTests()
 //PassTestDriver test function: Always passes
 bool PassTestDriver::test()
 {
-    //Outputs start time of test to milliseconds
-    auto time_now = std::chrono::system_clock::now();
-    std::time_t time = std::chrono::system_clock::to_time_t(time_now);
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
-    std::tm localTime = *std::localtime(&time);
-    cout << PassTestDriver::name << " test started at " << std::put_time(&localTime,"%m/%d/%Y %H:%M:%S") << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "\n";
-    
     return true;
 }
 
 //FailTestDriver test function: Always fails
 bool FailTestDriver::test()
 {
-    //Outputs start time of test to milliseconds
-    auto time_now = std::chrono::system_clock::now();
-    std::time_t time = std::chrono::system_clock::to_time_t(time_now);
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
-    std::tm localTime = *std::localtime(&time);
-    cout << FailTestDriver::name << " test started at " << std::put_time(&localTime,"%m/%d/%Y %H:%M:%S") << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "\n";
-    
     return false;
 }
 
 //ThrowTestDriver test function: Always throws an exception
 bool ThrowTestDriver::test()
 {
-    //Outputs start time of test to milliseconds
-    auto time_now = std::chrono::system_clock::now();
-    std::time_t time = std::chrono::system_clock::to_time_t(time_now);
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
-    std::tm localTime = *std::localtime(&time);
-    cout << ThrowTestDriver::name << " test started at " << std::put_time(&localTime,"%m/%d/%Y %H:%M:%S") << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "\n";
-
     throw std::runtime_error("ThrowTestDriver will always throw an exception");
     return false;
 }

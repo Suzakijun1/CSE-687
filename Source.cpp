@@ -4,9 +4,6 @@
 // TestHarness Project                             //
 /////////////////////////////////////////////////////
 
-#include <chrono>
-#include <ctime>
-#include <iomanip>
 #include <stdexcept>
 #include <iostream>
 #include <functional>
@@ -21,11 +18,6 @@ class FunctorClass
     public:
     bool operator()()
     { 
-        auto time_now = std::chrono::system_clock::now();
-        std::time_t time = std::chrono::system_clock::to_time_t(time_now);
-        auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
-        std::tm localTime = *std::localtime(&time);
-        cout << "Functor Class test started at " << std::put_time(&localTime,"%m/%d/%Y %H:%M:%S") << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "\n";
         return true; 
     }
 };
@@ -35,11 +27,6 @@ std::function<bool()> makeLambda()
 {
     std::function<bool()> func = []()
     {
-        auto time_now = std::chrono::system_clock::now();
-        std::time_t time = std::chrono::system_clock::to_time_t(time_now);
-        auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
-        std::tm localTime = *std::localtime(&time);
-        cout << "Lambda test started at " << std::put_time(&localTime,"%m/%d/%Y %H:%M:%S") << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "\n";
         return false;
     };
     return func;

@@ -6,6 +6,9 @@
 
 #ifndef TESTHARNESS_H
 #define TESTHARNESS_H
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
@@ -67,6 +70,14 @@ class TestHarness
         bool result = false;
         try
         {
+            //The following block of code outputs the current date and time down to millisecond for the start of the test
+            auto time_now = std::chrono::system_clock::now();
+            std::time_t time = std::chrono::system_clock::to_time_t(time_now);
+            auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_now.time_since_epoch())%1000;
+            std::tm localTime = *std::localtime(&time);
+            cout << testName << " test started at " << std::put_time(&localTime,"%m/%d/%Y %H:%M:%S") << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "\n";
+
+            //Attempt to invoke callable object
             result = callable();
         }
         catch(const std::exception& e)
