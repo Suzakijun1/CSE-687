@@ -27,12 +27,15 @@ using std::cout;
 using std::vector;
 extern std::mutex DQmutex;
 
+//Test functions to be run when the test driver sends a test request
+bool PassFunction(); //Always passes
+bool FailFunction(); //Always fails
+bool ThrowFunction(); //Always throws an exception
 
-bool PassFunction();
-bool FailFunction();
-bool ThrowFunction();
+//Returns date and time to be used for logging purposes as well as the time_date variable of the Message class
 string getDateTime();
 
+//Used to organize messages sent through socket communications
 class Message
 {
     public:
@@ -48,39 +51,77 @@ class Message
     string JSONbody;
 };
 
-nlohmann::json convertMessageToJSON(Message msg);
-Message convertJSONtoMessage(nlohmann::json Jbody);
+//Helper functions to convert between Message class object and JSON object
+nlohmann::json convertMessageToJSON(Message msg); //Message to JSON
+Message convertJSONtoMessage(nlohmann::json Jbody); //JSON to Message
 
+//TestHanress class used to initialize socket communications, process test requests, and execute tests
 class TestHarness
 {
     public:
+    //Constructor that initializes logLevel
     TestHarness(int logLevel_);
 
-    
+    //Initializes the socket on the server that will be the listening socket to establish communication with clients
+    //Initializes all threads that will be executed to maintain communications and run tests
     void createServerSocket(); 
+
+    //Initializes the client sockets and connects them to the listening socket on the server
+    //Sends readymessages and runs the requested tests from the server until a "Break" message is received
+    //Uses chilID to keep track of the executing thread
     void createClientSocket(int childID,CommSocket& clientSocket);
-    void startListening(bool& listening);
+
+    //Establish a listening socket for clients to connect
+    void startListening();
+
+    //Once a client socket connects to the listening server socket, acceptClients creates a separate
+    //communication socket on the server for communications with the client socket that was accepted
+    //Receives ready messages from the client and sends test requests from the blocking queue until the blocking queue is empty
     void acceptClients(CommSocket& serverClientSocket);
-    void sendMessage(Message msg);
-    void processMessage(Message msg);
+
+    //Initialized at the creation of TestHarness object that specifies desired amount of logging
     int logLevel;
-    size_t serverPort;
+
+    //Primary server socket used for listening for clients trying to connect
     CommSocket ServerSocket;
+
+    //Client sockets created to connect to the listening socket
     CommSocket ClientConnectorSocket1;
     CommSocket ClientConnectorSocket2;
     CommSocket ClientConnectorSocket3;
+
+    //Sockets to be used by the server to communicate with clients once a connection has been accepted
     CommSocket ClientListenerSocket1;
     CommSocket ClientListenerSocket2;
     CommSocket ClientListenerSocket3;
+
+    //Blocking Queue to send test requests from the server to the client
     BlockingQueue<Message> testRequestsQueue;
+    
+    //Executor function to run the requested callable object in the scope of a try block and log results
     template <typename T>
     void Executor(T& callable, string testName)
     {
         bool result = false;
+        {
+            if(logLevel == 1)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << "Test started.\n";
+            }
+            if(logLevel == 2)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << testName << " test started.\n";
+            }
+            if(logLevel == 3)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << testName << " test started at " << getDateTime();
+            }
+        }
         try
         {
-            std::lock_guard<std::mutex> lock(outputMutex);
-            cout << testName << " test started at " << getDateTime();
             result = callable();
         }
         catch(const std::exception& e)
@@ -90,24 +131,60 @@ class TestHarness
         }
         if(result == true)
         {
-            std::lock_guard<std::mutex> lock(outputMutex);
-            cout << testName << " test completed at " << getDateTime();
-            cout << "Test passed.\n";
+            //Outputs different completion status based on logLevel
+            if(logLevel == 1)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << "Test passed.\n";
+            }
+            if(logLevel == 2)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << testName << " test completed.\n";
+                cout << "Test passed.\n";
+            }
+            if(logLevel == 3)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << testName << " test completed at " << getDateTime();
+                cout << "Test passed.\n";
+            }
         }
         if(result == false)
         {
-            std::lock_guard<std::mutex> lock(outputMutex);
-            cout << testName << " test completed at " << getDateTime();
-            cout << "Test failed.\n";
+            //Outputs different completion status based on logLevel
+            if(logLevel == 1)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << "Test failed.\n";
+            }
+            if(logLevel == 2)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << testName << " test completed.\n";
+                cout << "Test failed.\n";
+            }
+            if(logLevel == 3)
+            {
+                std::lock_guard<std::mutex> lock(outputMutex);
+                cout << testName << " test completed at " << getDateTime();
+                cout << "Test failed.\n";
+            }
         }
     }
 };
 
+//TestDriver class creates messages to be sent from TestHarness on the server to the clients that will execute the tests
 class TestDriver
 {
     public:
+    //Constructor initializes the messages to be sent
     TestDriver();
+
+    //Creates the TestHarness object and enqueues test request messages to the TestHarness blocking queue
     void runTests();
+
+    //Three different test requests for three unique tests to be run
     Message passTestRequest;
     Message failTestRequest;
     Message throwTestRequest;

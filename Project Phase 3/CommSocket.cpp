@@ -26,6 +26,7 @@ using std::cout;
 using std::vector;
 std::mutex outputMutex;
 
+//Constructor to initialize Winsock library and member variables
 CommSocket::CommSocket()
 {
     iResult = WSAStartup(MAKEWORD(2,2),&wsaData);
@@ -45,6 +46,7 @@ CommSocket::CommSocket()
     SocketConnector = INVALID_SOCKET;
 }
 
+//Destructor closes any open sockets and frees memory allocated during Winsock execution
 CommSocket::~CommSocket()
 {
     if(SocketListener!=INVALID_SOCKET)
@@ -58,6 +60,7 @@ CommSocket::~CommSocket()
     int error = WSACleanup();
 }
 
+//Initializes socket that will be used for listening, binds the socket to an address, and starts listening for clients
 bool CommSocket::startListening()
 {
     string sPort = std::to_string(ListenerPort);
@@ -105,6 +108,7 @@ bool CommSocket::startListening()
     return true;
 }
 
+//Listening socket accepts clients attempting to connect and returns the communication socket on the server
 SOCKET CommSocket::acceptClientConnection()
 {
     SOCKET clientSocket = accept(SocketListener,NULL,NULL);
@@ -117,6 +121,7 @@ SOCKET CommSocket::acceptClientConnection()
     return clientSocket;
 }
 
+//Initializes client socket and connects to the listening socket on the server
 void CommSocket::startConnection(const string& ip, size_t port)
 {
     string sPort = std::to_string(port);
@@ -151,6 +156,7 @@ void CommSocket::startConnection(const string& ip, size_t port)
     }
 }
 
+//Once a communication socket is established, used to send string messages from one end to the other
 bool CommSocket::sendString(const string& str)
 {
     size_t bytesSent, bytesRemaining = str.size();
@@ -174,6 +180,7 @@ bool CommSocket::sendString(const string& str)
     return true;
 }
 
+//Once a communication socket is established, receive string messages that are sent through the socket
 string CommSocket::recvString()
 {
     static const int buflen = 600;

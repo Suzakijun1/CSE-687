@@ -21,27 +21,27 @@ std::mutex DQmutex;
 
 #pragma comment(lib, "Ws2_32.lib")
 
-
-bool PassFunction()
+//Test functions to be run when the test driver sends a test request
+bool PassFunction() //Always passes
 {
 	std::this_thread::sleep_for(std::chrono::seconds(2));
     return true;
 }
 
-bool FailFunction()
+bool FailFunction() //Always fails
 {
 	std::this_thread::sleep_for(std::chrono::seconds(2));
     return false;
 }
 
-bool ThrowFunction()
+bool ThrowFunction() //Always throws an exception
 {
 	std::this_thread::sleep_for(std::chrono::seconds(2));
     throw std::runtime_error("ThrowFunction will always throw an exception");
     return false;
 }
 
-
+//Returns date and time to be used for logging purposes as well as the time_date variable of the Message class
 string getDateTime()
 {
     auto time_now = std::chrono::system_clock::now();
@@ -53,7 +53,8 @@ string getDateTime()
     return oss.str();
 }
 
-nlohmann::json convertMessageToJSON(Message msg)
+//Helper functions to convert between Message class object and JSON object
+nlohmann::json convertMessageToJSON(Message msg) //Message to JSON
 {
 	nlohmann::json Jbody;
 	Jbody = 
@@ -70,7 +71,7 @@ nlohmann::json convertMessageToJSON(Message msg)
 	return Jbody;
 }
 
-Message convertJSONtoMessage(nlohmann::json Jbody)
+Message convertJSONtoMessage(nlohmann::json Jbody) //JSON to Message
 {
 	Message msg;
 	msg.sourceAddr = Jbody["SourceAddress"];
@@ -85,22 +86,30 @@ Message convertJSONtoMessage(nlohmann::json Jbody)
 	return msg;
 }
 
+//Constructor that initializes logLevel
 TestHarness::TestHarness(int logLevel_)
 {
     logLevel = logLevel_;
 }
 
+//Initializes the socket on the server that will be the listening socket to establish communication with clients
+//Initializes all threads that will be executed to maintain communications and run tests
 void TestHarness::createServerSocket()
 {
-	bool isListening = false;
-	std::thread ServerThread(&TestHarness::startListening,this,std::ref(isListening));
-	while(isListening==false) {}
+	//Initialize listening socket
+	startListening();
+
+	//Establishes server threads to receive ready messages and send test requests
 	std::thread serverSocketThread1(&TestHarness::acceptClients,this,std::ref(ClientListenerSocket1));
 	std::thread serverSocketThread2(&TestHarness::acceptClients,this,std::ref(ClientListenerSocket2));
 	std::thread serverSocketThread3(&TestHarness::acceptClients,this,std::ref(ClientListenerSocket3));
+	
+	//Establishes client threads to receive test requests and send ready messages
 	std::thread clientThread1(&TestHarness::createClientSocket,this,1,std::ref(ClientConnectorSocket1));
 	std::thread clientThread2(&TestHarness::createClientSocket,this,2,std::ref(ClientConnectorSocket2));
 	std::thread clientThread3(&TestHarness::createClientSocket,this,3,std::ref(ClientConnectorSocket3));
+
+	//Joins all threads created once they are completed executing
 	if(clientThread1.joinable())
 	{
 		clientThread1.join();
@@ -125,20 +134,21 @@ void TestHarness::createServerSocket()
 	{
 		serverSocketThread3.join();
 	}
-	if(ServerThread.joinable())
-	{
-		ServerThread.join();
-	}
 }
 
+//Initializes the client sockets and connects them to the listening socket on the server
+//Sends readymessages and runs the requested tests from the server until a "Break" message is received
+//Uses chilID to keep track of the executing thread
 void TestHarness::createClientSocket(int childID,CommSocket& clientSocket)
 {
-	clientSocket.clientID = childID;
+	//Establishes connection listening server socket
 	clientSocket.startConnection("127.0.0.1",3000);
 	{
 		std::lock_guard<std::mutex> lock(outputMutex);
 		cout << "Established connection for child thread " + std::to_string(childID) + "\n";
 	}
+
+	//Creates ready message to be sent when the child thread is ready
 	Message childMessage;
 	childMessage.sourceAddr = "127.0.0.1";
 	childMessage.destAddr = "127.0.0.1";
@@ -150,8 +160,10 @@ void TestHarness::createClientSocket(int childID,CommSocket& clientSocket)
 	childMessage.testToRun = "N/A";
 	childMessage.JSONbody = (convertMessageToJSON(childMessage)).dump();
 
+	//Sends ready messages and receives test request until a "Break" request is sent
 	while(true)
 	{
+		//Sends premade ready message
 		bool isSent = clientSocket.sendString(childMessage.JSONbody);
 		if(isSent == true)
 		{
@@ -163,13 +175,17 @@ void TestHarness::createClientSocket(int childID,CommSocket& clientSocket)
 			std::lock_guard<std::mutex> lock(outputMutex);
 			cout << "Child " << childID << " was not able to send ready message\n";
 		}
+
+		//Receives test requests
 		string JSONstring = clientSocket.recvString();
 		nlohmann::json JSONmsg = nlohmann::json::parse(JSONstring);
 		string TestToRun = JSONmsg["TestToRun"];
 		{
 			std::lock_guard<std::mutex> lock(outputMutex);
-			cout << "Child " << childID << " received TestToRun = " << TestToRun << "\n";
+			cout << "Child " << childID << " received TestToRun: \"" << TestToRun << "\"\n";
 		}
+
+		//Runs tests based on the test request
 		if(TestToRun == "Pass")
 		{
 			Executor(PassFunction,TestToRun);
@@ -182,6 +198,8 @@ void TestHarness::createClientSocket(int childID,CommSocket& clientSocket)
 		{
 			Executor(ThrowFunction,TestToRun);
 		}
+
+		//Exits the loop once the "Break" request is sent
 		if(TestToRun == "Break")
 		{
 			break;
@@ -193,17 +211,24 @@ void TestHarness::createClientSocket(int childID,CommSocket& clientSocket)
 	}	
 }
 
-void TestHarness::startListening(bool& listening)
+//Establish a listening socket for clients to connect
+void TestHarness::startListening()
 {
-	listening = ServerSocket.startListening();
+	ServerSocket.startListening();
 }
 
+//Once a client socket connects to the listening server socket, acceptClients creates a separate
+//communication socket on the server for communications with the client socket that was accepted
+//Receives ready messages from the client and sends test requests from the blocking queue until the blocking queue is empty
 void TestHarness::acceptClients(CommSocket& serverClientSocket)
 {
+	//Once the client socket is accepted by the listening socket, the server creates a separate communication socket to communicate with the client
 	serverClientSocket.SocketConnector = ServerSocket.acceptClientConnection();
 
+	//Continue to receive ready messages and send test requests until the blocking queue is empty
 	while(true)
 	{
+		//If blocking queue is empty, send a "Break" message to the client and then break out of its own loop
 		if(testRequestsQueue.size() == 0)
 		{
 			Message harnessMessage;
@@ -226,9 +251,11 @@ void TestHarness::acceptClients(CommSocket& serverClientSocket)
 		}
 		else
 		{
+			//Double check that the queue is not empty as well as use a mutex while dequeueing the message to prevent
+			//other threads from attempting this at the same time
 			Message harnessMessage;
 			{
-				std::lock_guard<std::mutex> lock(outputMutex);
+				std::lock_guard<std::mutex> lock(DQmutex);
 				if(testRequestsQueue.size() == 0)
 				{
 					continue;
@@ -238,6 +265,8 @@ void TestHarness::acceptClients(CommSocket& serverClientSocket)
 					harnessMessage = testRequestsQueue.deQ();
 				}
 			}
+
+			//Verify ready message is received and send test request message
 			string JSONstring = serverClientSocket.recvString();
 			nlohmann::json JSONmsg = nlohmann::json::parse(JSONstring);
 			string msgType = JSONmsg["MessageType"];
@@ -254,6 +283,7 @@ void TestHarness::acceptClients(CommSocket& serverClientSocket)
 	}
 }
 
+//Constructor initializes the messages to be sent
 TestDriver::TestDriver()
 {
     passTestRequest.sourceAddr = "127.0.0.1";
@@ -287,6 +317,7 @@ TestDriver::TestDriver()
 	throwTestRequest.JSONbody = (convertMessageToJSON(throwTestRequest)).dump();
 }
 
+//Creates the TestHarness object and enqueues test request messages to the TestHarness blocking queue
 void TestDriver::runTests()
 {
     TestHarness TH(3);

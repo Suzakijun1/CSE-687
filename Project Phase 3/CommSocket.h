@@ -33,6 +33,7 @@ extern std::mutex outputMutex;
 
 #pragma comment(lib, "Ws2_32.lib:")
 
+//Used to establish communications between server and client
 class CommSocket
 {
     public:
