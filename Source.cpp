@@ -17,7 +17,6 @@
 using std::string;
 using std::cout;
 
-typedef bool (*funcPass)();
 int main()
 {
     TestDriver TD;
